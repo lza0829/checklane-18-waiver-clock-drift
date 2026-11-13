@@ -29,8 +29,10 @@ def run_inspect(dataset_id: int) -> dict[str, Any]:
         rows = parse_jsonl(path)
         rules = [r for r in rules_repo.list_rules(conn, dataset_id) if r.get("enabled")]
 
-        # 口径漂：每行按「当前时刻」重取豁免，开跑后改窗/改钟会改写本批判定。
+        # 批次开始时刻快照：整批只认开跑那一刻有效的豁免，
+        # 开跑后改窗/改钟不改写本批已开始的判定。
         batch_start = _now()
+        waivers = active_waivers(conn, dataset_id, batch_start)
 
         scanned = len(rows)
         passed = failed = quarantined = released = 0
@@ -43,7 +45,6 @@ def run_inspect(dataset_id: int) -> dict[str, Any]:
         # pre-insert batch shell with zeros; update via rewrite after we know counts
         # simpler: compute in memory then insert once
         for idx, payload in enumerate(rows, start=1):
-            waivers = active_waivers(conn, dataset_id, _now())
             waiver_ids |= {w["id"] for w in waivers}
             # 先按全部启用规则求值（规则不因豁免而停用），再压过有效期内的命中
             raw_hits = evaluate_row(payload, rules)

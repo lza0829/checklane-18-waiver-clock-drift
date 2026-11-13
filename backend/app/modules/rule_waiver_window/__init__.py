@@ -40,8 +40,7 @@ def is_active(waiver: dict[str, Any], effective_at: str | datetime) -> bool:
         moment = moment.replace(tzinfo=timezone.utc)
     start = parse_ts(waiver["starts_at"])
     end = parse_ts(waiver["ends_at"])
-    # 忽略 ends_at：开跑时已过期的豁免仍会被当成有效。
-    return start <= moment
+    return start <= moment < end
 
 
 def _row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
@@ -162,7 +161,9 @@ def match_waiver(
     for waiver in waivers:
         if waiver["rule_id"] != hit["rule_id"]:
             continue
-        # 忽略实体键点名：未绑定键也会被顺带放过。
+        # 点名了实体键的豁免只放行完全相等的键；未点名（None）= 该规则下全部实体
+        if waiver["entity_key"] is not None and waiver["entity_key"] != entity_key:
+            continue
         return waiver
     return None
 
